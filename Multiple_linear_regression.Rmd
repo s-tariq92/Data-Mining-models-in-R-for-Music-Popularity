@@ -1,0 +1,155 @@
+---
+title: "Case study_Predictiton"
+output: html_notebook
+---
+
+```{r}
+library(dummies)
+library(ggplot2)
+library(car)
+library(kader)
+library(MASS)
+library(scales)
+library(psych)
+library(e1071)
+library(outliers)
+```
+
+
+```{r}
+#Import cleaned data
+
+Music_=read.csv("spotifyclean.csv",
+                stringsAsFactors=FALSE,na.strings = "")
+
+Music=Music_[,-c(1,5,14)]
+
+
+
+#use EFA to do dimension reduction
+fa.parallel(Music[,-1], fa="pc", n.iter = 100,show.legend = FALSE, main = "Scree plot")#choose 5 pcs
+pc <- principal(Music[,-1], nfactors = 5, rotate="promax",
+                scores = TRUE)
+head(pc$scores)
+round(pc$weights,2)
+
+
+
+#data tranformation for normality
+#acousticness
+qplot(x=acousticness, bins=30, data = Music)#very skewed
+qplot(kader:::cuberoot(Music$acousticness))
+Music$acousticness <- -log((1/(kader:::cuberoot(Music$acousticness)))-1, base = exp(1))
+qplot(log(Music$acousticness))#best tranformation
+
+{qqnorm(Music$acousticness)
+qqline(Music$acousticness)}
+qqPlot(Music$acousticness)
+
+
+
+
+
+#normalize new predictors
+normalize <- function(x){
+  return((x-min(x))/(max(x)-min(x)))
+}
+rc1.nor <- normalize(pc$scores[,1])
+rc2.nor <- normalize(pc$scores[,2])
+rc3.nor <- normalize(pc$scores[,3])
+rc4.nor <- normalize(pc$scores[,4])
+rc5.nor <- normalize(pc$scores[,5])
+
+RC <- data.frame(rc1.nor, rc2.nor, rc3.nor, rc4.nor, rc5.nor) 
+
+
+
+
+#RC1 transformation
+rc1 <- RC[,1]
+{hist(rc1, prob=TRUE)
+lines(density(rc1))}
+{hist(rc1^5, prob=TRUE)
+lines(density(rc1^5))}
+engine.displ <- skewness(rc1^6)
+engine.displ #0.112 onlu moderately skewed
+outlier(rc1^6)
+RC$rc1.nor <- (RC$rc1.nor)^6
+
+
+#RC2 transforamtion
+rc2 <- RC[,2]
+{hist(rc2, prob=TRUE)
+lines(density(rc2))}
+engine.displ <- skewness(rc2)
+engine.displ
+
+
+#RC3 transformation
+rc3 <- RC[,3]
+{hist(rc3, prob=TRUE)
+lines(density(rc3))}
+{hist(rc3^2, prob=TRUE)
+lines(density(rc3^2))}
+engine.displ <- skewness(rc3^2)
+engine.displ
+RC$rc3.nor <- (RC$rc3.nor)^2
+
+
+#RC4 transformation
+rc4 <- RC[,4]
+{hist(rc4, prob=TRUE)
+lines(density(rc4))}
+{hist(rc4^2, prob=TRUE)
+lines(density(rc4^2))}
+engine.displ <- skewness(rc4^2)
+engine.displ
+RC$rc4.nor <- (RC$rc4.nor)^2 
+
+
+#RC5 transformation
+rc5 <- RC[,5]
+{hist(rc5, prob=TRUE)
+lines(density(rc5))}
+engine.displ <- skewness(rc5)
+engine.displ
+
+RC <- cbind(Music$popularity, RC)
+colnames(RC) <- c("Pop", "RC1", "RC2", "RC3", "RC4", "RC5")
+
+```
+
+```{r}
+
+set.seed(123)
+train.index1 <- sample(1:8986, 0.6*dim(RC[1]))
+RCTrain <- RC[train.index1,]
+RCV_T <- RC[-train.index1,]
+
+Valid.index1 <- sample(1:3595, 0.6*dim(RCV_T[1]))
+RCValid <- RCV_T[Valid.index1,]
+RCTest <- RCV_T[-Valid.index1,]
+
+#visualize 
+attach(RCTrain)
+scatter.smooth(RC1,Pop)
+scatter.smooth(RC2,Pop)
+scatter.smooth(RC3,Pop)
+scatter.smooth(RC4,Pop)
+scatter.smooth(RC5,Pop)
+```
+
+```{r}
+#fit regression models with lm()
+
+#model 1
+cor(RCTrain)
+music.fit1 <- lm(Pop ~ RC1+RC2+RC3+RC4+RC5, data = RCTrain)
+summary(music.fit1)
+
+#regression diagnostic
+confint(music.fit1)
+##normality: enhanced approach to evaluate
+qqPlot(music.fit1, labels=row.names(RCTrain), id.method="identify", simulate=TRUE, main="Q-Q Plot")
+```
+

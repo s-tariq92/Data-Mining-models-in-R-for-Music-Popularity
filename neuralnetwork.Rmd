@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+sp=read.csv("spotifyclean.csv",
+                stringsAsFactors=FALSE,na.strings = "")
+
+sp=sp[,-c(1,5,14)]
+```
+
+
+```{r}
+#data sampling
+
+set.seed(111)
+train.index = sample(row.names(sp), 0.60*dim(sp)[1])
+valid.index = setdiff(row.names(sp), train.index)
+train.df = sp[train.index,]
+valid.df = sp[valid.index,]
+```
+
+
+```{r}
+
+#PREDICTION
+library(neuralnet)
+
+#model
+#model <- neuralnet(Output~Input,trainingdata, hidden=10, threshold=0.01)
+model1 = neuralnet(popularity~ mode_minor_major+acousticness+danceability+duration_minutes+liveness+loudness_decibels+
+                     speechiness+tempo_bpm+valence,
+data = train.df, 
+algorithm = 'rprop+')
+
+
+#prediction using training and validation
+results1 <- compute(model1, valid.df) #exclude response variable
+predicted1=data.frame(as.numeric(results1$net.result))
+
+
+#RMS error
+library(Metrics)
+RMSE(results1$net.result, valid.df$popularity) #7.78
+MAE(results1$net.result, valid.df$popularity) #0.11
+mape(results1$net.result, valid.df$popularity) #6.15
+me(results1$net.result, valid.df$popularity)
+
+
+me(predicted1$results1.net.result, valid.df$popularity) #-0.08
+
+
+
+
+
+```
+
+
+
